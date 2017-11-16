@@ -104,3 +104,5 @@ ENV/
 *.ini
 
 *.idea
+
+.vscode/

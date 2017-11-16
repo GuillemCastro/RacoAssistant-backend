@@ -27,16 +27,13 @@ class AuthRequestHandler(HttpServer.BaseHTTPRequestHandler):
         params = parse_qs(urlparse(self.path).query)
         path = urlparse(self.path).path
         if path == "/":
-            if 'access_token' in params:
+            if 'code' in params:
                 self.send_response(200)
                 self.end_headers()
                 user_id = params['state'][0]
-                access_token = params['access_token'][0]
-                token_type = params['token_type'][0]
-                expires_in = int(params['expires_in'][0])
-                scope = params['scope'][0]
-                th = Thread(target=process_auth_code, args=(user_id, access_token, token_type, expires_in, scope))
-                th.start()
+                code = params['code'][0]
+                thread = Thread(target=process_auth_code, args=(user_id, code))
+                thread.start()
                 self.wfile.write("OK 200".encode("utf-8"))
             else:
                 self.send_response(400)
@@ -49,9 +46,11 @@ class AuthRequestHandler(HttpServer.BaseHTTPRequestHandler):
 
 
 
-def process_auth_code(user_id, access_token, token_type, expires_in, scope):
-    token = FIB.get_access_token(access_token, token_type, expires_in, scope)
+def process_auth_code(user_id, auth_code):
+    token = FIB.get_access_token(BotConfig.client_id, BotConfig.client_secret, BotConfig.complete_host, user_id, auth_code)
     if token:
+        user = FIB.get_name(token)
+        print("Welcome " + user.name.capitalize() + " " + user.surname.capitalize())
         #Save it to DB
     else:
         raise RuntimeError()
