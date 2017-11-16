@@ -1,6 +1,6 @@
 from telegram.ext import (Updater, CommandHandler)
 import commands
-import configparser
+from BotConfig import BotConfig
 from threading import Thread
 
 import AuthServer
@@ -8,13 +8,12 @@ import queue
 
 def auth_thread():
     auth_queue = queue.Queue()
-    auth_server = AuthServer.AuthServer(("0.0.0.0", 6505), AuthServer.AuthRequestHandler, auth_queue)
+    auth_server = AuthServer.AuthServer(("0.0.0.0", BotConfig.port), AuthServer.AuthRequestHandler, auth_queue)
     auth_server.serve_forever()
 
 def main():
-    config = configparser.ConfigParser()
-    config.read("config.ini")
-    updater = Updater(config['Telegram']['Token'])
+    BotConfig.load_config("config.ini")
+    updater = Updater(BotConfig.bot_token)
 
     th = Thread(target=auth_thread, args=())
     th.start()

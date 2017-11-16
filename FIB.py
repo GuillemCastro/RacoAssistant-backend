@@ -1,33 +1,44 @@
 from urllib import request, parse, error
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 
 AUTH_URL = "https://api.fib.upc.edu/v2/o/authorize"
 TOKEN_URL = "https://api.fib.upc.edu/v2/o/token"
+JO_URL = "https://api.fib.upc.edu/v2/jo/"
 
 
 def get_auth_url(client_id, host_uri, user_id):
-    redirect_url = host_uri + '?' + parse.urlencode({'user_id': user_id})
+    redirect_url = host_uri
     params = parse.urlencode({'redirect_uri': redirect_url, 'client_id': client_id,
-                              'response_type': 'code', 'scope': 'read', 'state': 'random_state_string',
+                              'response_type': 'token', 'scope': 'read', 'state': user_id,
                               'approval_prompt': 'auto'}, doseq=True)
     return AUTH_URL + '?' + params
 
 
-def auth_code_to_access_token(client_id, client_secret, redirect_uri, auth_code, user_id):
-    redirect_url = redirect_uri + '?' + parse.urlencode({'id': user_id})
-    data = parse.urlencode({'client_id': client_id, 'client_secret': client_secret, 'redirect_uri': redirect_url,
-                            'code': auth_code, 'grant_type': 'authorization_code'}) #.encode("utf-8")
-    print("data: " + data)
+def get_access_token(access_token, token_type, expires_in, scope):
+    expire_date = datetime.now() + timedelta(seconds=expires_in)
+    return Token(access_token, token_type, expire_date, None, scope)
+
+def get_name(token):
+    headers = {
+        "Accept": "application/json",
+        "Authorization": "Bearer " + token.token,
+        'User-agent': 'Mozilla/5.0'
+    }
+    req = request.Request(JO_URL, headers=headers, method='GET')
     try:
-        with request.urlopen(TOKEN_URL, data.encode("utf-8")) as f:
+        with request.urlopen(req) as f:
             result = f.read()
-            return Token.from_json(result)
+        return User.from_json(result.decode('utf-8'))
     except error.HTTPError as e:
+        print(e)
         print(e.read())
+        raise RuntimeError()
 
 
 def refresh_token(token, client_id, client_secret):
+    if token.refresh_token == None:
+        raise RuntimeError()
     data = parse.urlencode({'grant_type': 'refresh_token', 'refresh_token': token.token, 'client_id': client_id,
                             'client_secret': client_secret})
     with request.urlopen(TOKEN_URL, data) as f:
@@ -49,3 +60,17 @@ class Token:
         j_data = json.loads(data)
         expire_data = datetime.today() + j_data['Expires_in']
         return Token(j_data['Access_token'], j_data['Token_type'], expire_data, j_data['Refresh_token'], j_data['Scope'])
+
+class User:
+
+    def __init__(self, name, surname, email, username, photo):
+        self.name = name
+        self.surname = surname
+        self.email = email
+        self.username = username
+        self.photo = photo
+
+    @classmethod
+    def from_json(cls, data):
+        j_data = json.loads(data)
+        return User(j_data['nom'], j_data['cognoms'], j_data['email'], j_data['username'], j_data['foto'])

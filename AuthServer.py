@@ -2,21 +2,13 @@ import http.server as HttpServer
 from urllib.parse import urlparse, parse_qs
 import FIB
 from threading import Thread
-import configparser
-
-config = configparser.ConfigParser()
-config.read("config.ini")
-client_id = config['FIB']['ClientID']
-client_secret = config['FIB']['ClientSecret']
-
+from BotConfig import BotConfig
 
 class AuthServer(HttpServer.HTTPServer, object):
 
     def __init__(self, server_address, RequestHandlerClass, authQueue):
         super(AuthServer, self).__init__(server_address=server_address, RequestHandlerClass=RequestHandlerClass)
         self.authQueue = authQueue
-        print("__INIT__")
-
 
 class AuthRequestHandler(HttpServer.BaseHTTPRequestHandler):
 
@@ -35,32 +27,31 @@ class AuthRequestHandler(HttpServer.BaseHTTPRequestHandler):
         params = parse_qs(urlparse(self.path).query)
         path = urlparse(self.path).path
         if path == "/":
-            if 'user_id' in params:
+            if 'access_token' in params:
                 self.send_response(200)
                 self.end_headers()
-                print("GET")
-                if 'error' in params:
-                    return #Send error message to user
-                user_id = params['user_id']
-                auth_code = params['code'][0]
-                th = Thread(target=process_auth_code, args=(user_id, auth_code))
+                user_id = params['state'][0]
+                access_token = params['access_token'][0]
+                token_type = params['token_type'][0]
+                expires_in = int(params['expires_in'][0])
+                scope = params['scope'][0]
+                th = Thread(target=process_auth_code, args=(user_id, access_token, token_type, expires_in, scope))
                 th.start()
-                self.wfile.write("OK".encode("utf-8"))
+                self.wfile.write("OK 200".encode("utf-8"))
             else:
                 self.send_response(400)
                 self.end_headers()
-                self.wfile.write("REQUEST ERROR".encode("utf-8"))
+                self.wfile.write("REQUEST ERROR 400".encode("utf-8"))
         else:
             self.send_response(401)
             self.end_headers()
-            self.wfile.write("UNAUTHORIZED".encode("utf-8"))
+            self.wfile.write("UNAUTHORIZED 401".encode("utf-8"))
 
 
 
-def process_auth_code(user_id, auth_code):
-    print("client_id: " + client_id)
-    print(" client_secret: " + client_secret)
-    print(" auth_code: " + auth_code)
-    token = FIB.auth_code_to_access_token(client_id, client_secret, '127.0.0.1', auth_code, user_id)
-    print ("token" + token.token)
-    # Save token to DB
+def process_auth_code(user_id, access_token, token_type, expires_in, scope):
+    token = FIB.get_access_token(access_token, token_type, expires_in, scope)
+    if token:
+        #Save it to DB
+    else:
+        raise RuntimeError()
